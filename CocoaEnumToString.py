@@ -19,16 +19,14 @@ def all_constant_decls(enum):
 def indent_all_lines(s, indent):
     return '\n'.join(indent + line for line in s.split('\n'))
     
-def format_as_array(enum, prefix, indent):
+def format_as_array(enum, title, indent):
     all_members = ['[{0.spelling}]=@"{0.spelling}"'.format(constant) 
                         for constant in all_constant_decls(enum)]
     all_members = ",\n".join(all_members)
                                 
-    return "NSString * const {}StringFor{}[] = {{{}}};".format(prefix,
-                                                               enum.spelling, 
-                                                               all_members)
+    return "NSString * const {}[] = {{{}}};".format(title, all_members)
                                                     
-def format_as_func(enum, prefix, indent):
+def format_as_func(enum, title, indent):
     case_str = 'case {0.spelling}:\n{indent}return @"{0.spelling}";'
     all_cases = [case_str.format(constant, indent=indent)
                         for constant in all_constant_decls(enum)]
@@ -38,8 +36,8 @@ def format_as_func(enum, prefix, indent):
     switch = "switch( val ){{\n{}\n}}".format(indent_all_lines(all_cases, 
                                                                indent))
     
-    func_str = "NSString * {}StringFor{name}({name} val){{\n{body}\n}}"
-    return func_str.format(prefix, name=enum.spelling, 
+    func_str = "NSString * {}({name} val){{\n{body}\n}}"
+    return func_str.format(title, name=enum.spelling, 
                            body=indent_all_lines(switch, indent))
                            
 parser = argparse.ArgumentParser(description="Use libclang to find enums in "
@@ -60,9 +58,9 @@ parser.add_argument("-c", "--construct", default="array",
 # one flag to be used per name
 parser.add_argument("-e", "--enums", action="append", #default=[],
                     help="Specify particular enums to capture; by default "
-                    "all enums in the given file are used. You may specify "
-                    "any number, but each must be preceded by a flag. Names "
-                    "which are not found in the file are ignored.")
+                    "all enums in the given file are used. This argument may "
+                    "be present multiple times. Names which are not found in "
+                    "the input file are ignored.")
 parser.add_argument("--fun", "--func", "--function", action="store_const", 
                     const="function", dest="construct", 
                     help="Emit a function for the mapping.")
@@ -70,7 +68,12 @@ parser.add_argument("-i", "--indent", default="4s",
                     help="Number and type of character to use for indentation."
                     " Digit plus either 't' (for tabs) or 's' (spaces), e.g., "
                     "'4s' (which is the default)")
-#TODO: Add "name" argument, allowing insertion of enum name
+parser.add_argument("-n", "--name", default="StringFor%e",
+                    help="Name for the construct; the prefix will "
+# Escape percent sign because argparse is doing some formatting of its own.
+                    "be added. Any appearances of '%%e' in this argument will "
+                    "be replaced with each enum name. The default is "
+                    "'StringFor%%e'.")
 parser.add_argument("-o", "--output",
                     help="If this argument is present, output should go to a "
                     "file which will be created at the specified path. An "
@@ -138,5 +141,6 @@ if arguments.enums:
 
                
 for enum in enums:
-    out_f.write(format_enum(enum, arguments.prefix, indent))
+    title = arguments.prefix + arguments.name.replace("%e", enum.spelling)
+    out_f.write(format_enum(enum, title, indent))
     out_f.write("\n\n")
