@@ -20,15 +20,16 @@ def indent_all_lines(s, indent):
     return '\n'.join(indent + line for line in s.split('\n'))
     
 def format_as_array(enum, title, indent):
-    all_members = ['[{0.spelling}]=@"{0.spelling}"'.format(constant) 
+    all_members = ['[{0}}]=@"{0}"'.format(constant.spelling) 
                         for constant in all_constant_decls(enum)]
     all_members = ",\n".join(all_members)
                                 
-    return "NSString * const {}[] = {{{}}};".format(title, all_members)
+    array_str = "NSString * const {}[] = {{{}}};"
+    return array_str.format(title, indent_all_lines(all_members, indent))
                                                     
 def format_as_func(enum, title, indent):
-    case_str = 'case {0.spelling}:\n{indent}return @"{0.spelling}";'
-    all_cases = [case_str.format(constant, indent=indent)
+    case_str = 'case {0}:\n{1}return @"{0}";'
+    all_cases = [case_str.format(constant.spelling, indent)
                         for constant in all_constant_decls(enum)]
     all_cases.append('default:\n{}@"";'.format(indent))
     all_cases = "\n".join(all_cases)
@@ -36,14 +37,15 @@ def format_as_func(enum, title, indent):
     switch = "switch( val ){{\n{}\n}}".format(indent_all_lines(all_cases, 
                                                                indent))
     
-    func_str = "NSString * {}({name} val){{\n{body}\n}}"
-    return func_str.format(title, name=enum.spelling, 
-                           body=indent_all_lines(switch, indent))
+    func_str = "NSString * {}}({} val){{\n{}\n}}"
+    return func_str.format(title, enum.spelling, 
+                           indent_all_lines(switch, indent))
                            
+
 parser = argparse.ArgumentParser(description="Use libclang to find enums in "
                                   "the specified Objective-C file and emit a "
-                                  "construct (array or function) to "
-                                  "map between the constant values and "
+                                  "construct (array or function) that "
+                                  "maps between the constant values and "
                                   "their names.")
 parser.add_argument("--arr", "--array", action="store_const", const="array",
                     dest="construct", help="Emit an array for the mapping.")
@@ -66,8 +68,8 @@ parser.add_argument("--fun", "--func", "--function", action="store_const",
                     help="Emit a function for the mapping.")
 parser.add_argument("-i", "--indent", default="4s",
                     help="Number and type of character to use for indentation."
-                    " Digit plus either 't' (for tabs) or 's' (spaces), e.g., "
-                    "'4s' (which is the default)")
+                    " Digits plus either 't' (for tabs) or 's' (for spaces), "
+                    "e.g., '4s', which is the default.")
 parser.add_argument("-n", "--name", default="StringFor%e",
                     help="Name for the construct; the prefix will "
 # Escape percent sign because argparse is doing some formatting of its own.
@@ -112,6 +114,7 @@ else:
   
 target_file_name = arguments.file
 
+
 # Ignore the fact that system libclang probably doesn't match the version
 # of the Python bindings.
 cindex.Config.set_compatibility_check(False)
@@ -133,13 +136,13 @@ tu = cindex.TranslationUnit.from_source(target_file_name,
                                               "-D", ns_options_def, "-D",
                                               "NS_ENUM_AVAILABLE="])
                                               
+
 enums = [node for node in all_children(tu.cursor) if 
                 node.kind == CursorKind.ENUM_DECL and
                 node.location.file.name.find(target_file_name) != -1]
 if arguments.enums:
     enums = filter(lambda enum: enum.spelling in arguments.enums, enums)
 
-               
 for enum in enums:
     title = arguments.prefix + arguments.name.replace("%e", enum.spelling)
     out_f.write(format_enum(enum, title, indent))
