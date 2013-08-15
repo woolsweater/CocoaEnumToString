@@ -89,9 +89,7 @@ parser.add_argument("-c", "--construct", default="array",
                          "will dictate the output.")
 parser.add_argument("--arr", "--array", action="store_const", const="array",
                     dest="construct", help="Emit an array for the mapping.")
-# Allow for either all names to be listed after a single flag, or for 
-# one flag to be used per name
-parser.add_argument("-e", "--enums", action="append", #default=[],
+parser.add_argument("-e", "--enums", action="append",
                     help="Specify particular enums to capture; by default "
                     "all enums in the given file are used. This argument may "
                     "be present multiple times. Names which are not found in "
