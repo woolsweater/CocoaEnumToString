@@ -1,10 +1,33 @@
 #!/usr/bin/env python
 
+"""
+CocoaEnumToString, copyright 2013 Joshua Caswell.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+"""
+
 import itertools
 import argparse
 import sys
 import re
 from os import path
+
 from clang import cindex
 from clang.cindex import CursorKind
 
@@ -19,12 +42,21 @@ def all_constant_decls(enum):
 def indent_all_lines(s, indent):
     return '\n'.join(indent + line for line in s.split('\n'))
     
+def format_anonymous(enum, title):
+    const_str = 'NSString * const {} = @"{}";\n'
+    constants = [const_str.format(title.replace('%e', constant.spelling),
+                                  constant.spelling)
+                            for constant in all_constant_decls(enum)]
+    return "".join(constants)
+        
+    
 def format_as_array(enum, title, indent):
-    all_members = ['[{0}}]=@"{0}"'.format(constant.spelling) 
+    all_members = ['[{0}] = @"{0}"'.format(constant.spelling) 
                         for constant in all_constant_decls(enum)]
     all_members = ",\n".join(all_members)
                                 
-    array_str = "NSString * const {}[] = {{{}}};"
+    title = title.replace('%e', enum.spelling)
+    array_str = "NSString * const {}[] = {{\n{}\n}};"
     return array_str.format(title, indent_all_lines(all_members, indent))
                                                     
 def format_as_func(enum, title, indent):
@@ -36,8 +68,8 @@ def format_as_func(enum, title, indent):
     
     switch = "switch( val ){{\n{}\n}}".format(indent_all_lines(all_cases, 
                                                                indent))
-    
-    func_str = "NSString * {}}({} val){{\n{}\n}}"
+    title = title.replace('%e', enum.spelling)
+    func_str = "NSString * {}({} val){{\n{}\n}}"
     return func_str.format(title, enum.spelling, 
                            indent_all_lines(switch, indent))
                            
@@ -47,15 +79,16 @@ parser = argparse.ArgumentParser(description="Use libclang to find enums in "
                                   "construct (array or function) that "
                                   "maps between the constant values and "
                                   "their names.")
-parser.add_argument("--arr", "--array", action="store_const", const="array",
-                    dest="construct", help="Emit an array for the mapping.")
+# This flag must come first for its default to override that of --arr and --fun
 parser.add_argument("-c", "--construct", default="array",
                     help="Specify 'function' or any prefix ('f', 'fun', etc.) "
                          "to emit a function that uses a switch statement for "
                          "the mapping; specify 'array' or any prefix for "
                          "an array (this is the default). Whichever of -c, "
                          "--arr, or --fun occurs last in the argument list "
-                         " will dictate the output.")
+                         "will dictate the output.")
+parser.add_argument("--arr", "--array", action="store_const", const="array",
+                    dest="construct", help="Emit an array for the mapping.")
 # Allow for either all names to be listed after a single flag, or for 
 # one flag to be used per name
 parser.add_argument("-e", "--enums", action="append", #default=[],
@@ -81,19 +114,19 @@ parser.add_argument("-o", "--output",
                     "file which will be created at the specified path. An "
                     "error will be raised if the file already exists.")
 parser.add_argument("-p", "--prefix", default="",
-                    help="Prefix to add to the name of emitted construct, "
-                    "e.g. 'NS'")
+                    help="Cocoa-style prefix to add to the name of emitted "
+                    "construct, e.g. 'NS'")
 parser.add_argument("file", help="Path to the file which should be parsed.")
                                            
 
-arguments = parser.parse_args()    
+arguments = parser.parse_args()
 
-if "function".startswith(arguments.construct):
-    format_enum = format_as_func 
-elif "array".startswith(arguments.construct):
-    format_enum = format_as_array
+if "array".startswith(arguments.construct):
+    format_enum = format_as_array 
+elif "function".startswith(arguments.construct):
+    format_enum = format_as_func
 else:
-   parser.error("Neither 'function' nor 'array' specified for construct ")
+   parser.error("Neither 'function' nor 'array' specified for construct.")
 
 match = re.match(r"(\d*)([st])", arguments.indent)
 if not match.group(2):
@@ -143,7 +176,11 @@ enums = [node for node in all_children(tu.cursor) if
 if arguments.enums:
     enums = filter(lambda enum: enum.spelling in arguments.enums, enums)
 
+title = arguments.prefix + arguments.name
+
 for enum in enums:
-    title = arguments.prefix + arguments.name.replace("%e", enum.spelling)
-    out_f.write(format_enum(enum, title, indent))
+    if not enum.spelling:
+        out_f.write(format_anonymous(enum, title))
+    else:
+        out_f.write(format_enum(enum, title, indent))
     out_f.write("\n\n")
