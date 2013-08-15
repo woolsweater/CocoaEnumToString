@@ -1,0 +1,3 @@
+[submodule "clang_python_bindings"]
+	path = clang_python_bindings
+	url = https://github.com/trolldbois/python-clang
