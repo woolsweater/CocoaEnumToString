@@ -55,6 +55,7 @@ Output:
     NSString * const WSSStringForNSFileManagerItemReplacementOptions[] = {
         [NSFileManagerItemReplacementUsingNewMetadataOnly] = @"NSFileManagerItemReplacementUsingNewMetadataOnly",
         [NSFileManagerItemReplacementWithoutDeletingBackupItem] = @"NSFileManagerItemReplacementWithoutDeletingBackupItem"
+<<<<<<< HEAD
     };
     
 Function output:
@@ -69,3 +70,6 @@ Function output:
                 @"";
         }
     }
+=======
+    };
+>>>>>>> b5b05de7038c7a99cdfe97341b051aa26c65fcd1
